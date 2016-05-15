@@ -6,15 +6,28 @@ import twitter4j.Status;
 import twitter4j.StatusDeletionNotice;
 import twitter4j.StatusListener;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
+import com.amazonaws.services.dynamodbv2.document.DeleteItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.ItemCollection;
+import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
 import com.amazonaws.services.dynamodbv2.document.PutItemOutcome;
+import com.amazonaws.services.dynamodbv2.document.ScanFilter;
+import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ScanRequest;
+import com.amazonaws.services.dynamodbv2.model.ScanResult;
 
-public class TweetListener implements StatusListener, twitter4j.util.function.Consumer<RateLimitStatusEvent> {
+public class TweetListener implements StatusListener, twitter4j.util.function.Consumer<RateLimitStatusEvent>, AutoCloseable {
 	
 	private DynamoDB dynamoDB;
 	private String topic;
@@ -52,6 +65,24 @@ public class TweetListener implements StatusListener, twitter4j.util.function.Co
 		
 		String bla = "bla";
 	}
+	
+	private void CleanTable()
+	{
+		Map<String, AttributeValue> expressionAttributeValues = 
+			    new HashMap<String, AttributeValue>();
+		expressionAttributeValues.put(":topic", new AttributeValue().withS(topic));
+		ScanRequest scanRequest = new ScanRequest()
+			    .withTableName("Tweets")
+			    .withFilterExpression("topic = :topic")
+			    .withProjectionExpression("Id")
+			    .withExpressionAttributeValues(expressionAttributeValues);
+
+
+		ScanResult result = ((AmazonDynamoDB) dynamoDB).scan(scanRequest);
+		
+		Table table = dynamoDB.getTable("Tweets");
+		result.getItems().forEach(item -> table.deleteItem("Id", item.get("Id")));
+	}
 
 	@Override
 	public void onTrackLimitationNotice(int arg0) {
@@ -82,6 +113,11 @@ public class TweetListener implements StatusListener, twitter4j.util.function.Co
 	{
 		// TODO Auto-generated method stub
 		
+	}
+
+	@Override
+	public void close() throws Exception {
+		CleanTable();
 	}
 
 }

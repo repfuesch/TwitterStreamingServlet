@@ -24,6 +24,7 @@ public class TwitterServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	
 	private Map<String, TwitterStream> streams;
+	private Map<TwitterStream, TweetListener> listeners;
 	
     /**
      * @see HttpServlet#HttpServlet()
@@ -31,6 +32,7 @@ public class TwitterServlet extends HttpServlet {
     public TwitterServlet() {
         super();
         streams = new HashMap<>();
+        listeners = new HashMap<>();
     }
     
     private void RegisterTopic(String topic)
@@ -46,12 +48,22 @@ public class TwitterServlet extends HttpServlet {
         stream.addListener(tweetListener);
         stream.filter(fq);
         
+        listeners.put(stream, tweetListener);
         streams.put(topic, stream);
     }
     
     private void UnregisterTopic(String topic)
     {
+    	TwitterStream stream = streams.get(topic);
+    	
+    	try {
+			listeners.get(stream).close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+    	
     	streams.get(topic).cleanUp();
+    	listeners.remove(stream);
     	streams.remove(topic);
     }
     
