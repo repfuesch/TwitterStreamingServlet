@@ -1,12 +1,15 @@
 package ch.uzh.ifi.adse.twitter.db;
 
+import twitter4j.HashtagEntity;
 import twitter4j.RateLimitStatusEvent;
 import twitter4j.StallWarning;
 import twitter4j.Status;
 import twitter4j.StatusDeletionNotice;
 import twitter4j.StatusListener;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.amazonaws.AmazonServiceException;
@@ -27,34 +30,59 @@ import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.amazonaws.services.dynamodbv2.model.ScanResult;
 
-public class TweetListener implements StatusListener, twitter4j.util.function.Consumer<RateLimitStatusEvent>, AutoCloseable {
+public class TweetListener implements StatusListener, twitter4j.util.function.Consumer<RateLimitStatusEvent> {
 	
 	private DynamoDB dynamoDB;
-	private String topic;
+	private List<String> topics;
 	
-	public TweetListener(String topic){
+	public TweetListener(){
 		AmazonDynamoDBClient client = new AmazonDynamoDBClient(new ProfileCredentialsProvider());
 		client.withEndpoint("http://localhost:8000");
 		dynamoDB = new DynamoDB(client);
-		this.topic = topic;
+		this.topics = new ArrayList<>();
+	}
+	
+	public void UpdateTopics(String topic)
+	{
+		if(!topics.contains(topic))
+			topics.add(topic);
+	}
+	
+	public void RemoveTopic(String topic)
+	{
+		if(topics.contains(topic))
+			topics.remove(topic);
+	}
+	
+	public final List<String> GetTopics()
+	{
+		return topics;
 	}
 	
 	@Override
 	public void onException(Exception arg0) {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void onStatus(Status tweet) {
 		
 		Table table = dynamoDB.getTable("Tweets");
+		HashtagEntity[] hashtags = tweet.getHashtagEntities();
+		List<String> containedTopics = new ArrayList<>();
+		for(HashtagEntity entity : hashtags)
+		{
+			for(String topic : topics)
+			{
+				if(("#" + entity.getText()).equalsIgnoreCase(topic))
+					containedTopics.add(topic);
+			}
+		}
 		
 		Item item = new Item()     
 			    .withPrimaryKey("Id", tweet.getId())
 			    .withString("text", tweet.getText())
 			    .withLong("createdAt", tweet.getCreatedAt().getTime())
-			    .withString("topic", topic);
+			    .withList("topics", topics);
 		
 		try{
 			PutItemOutcome outcome = table.putItem(item);
@@ -63,11 +91,11 @@ public class TweetListener implements StatusListener, twitter4j.util.function.Co
 			System.out.println("Exception: " + ex.getMessage());
 		}
 		
-		String bla = "bla";
 	}
 	
 	private void CleanTable()
 	{
+		/*
 		Map<String, AttributeValue> expressionAttributeValues = 
 			    new HashMap<String, AttributeValue>();
 		expressionAttributeValues.put(":topic", new AttributeValue().withS(topic));
@@ -82,6 +110,7 @@ public class TweetListener implements StatusListener, twitter4j.util.function.Co
 		
 		Table table = dynamoDB.getTable("Tweets");
 		result.getItems().forEach(item -> table.deleteItem("Id", item.get("Id")));
+		*/
 	}
 
 	@Override
@@ -114,10 +143,4 @@ public class TweetListener implements StatusListener, twitter4j.util.function.Co
 		// TODO Auto-generated method stub
 		
 	}
-
-	@Override
-	public void close() throws Exception {
-		CleanTable();
-	}
-
 }

@@ -23,50 +23,33 @@ import twitter4j.TwitterStreamFactory;
 public class TwitterServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	
-	private Map<String, TwitterStream> streams;
-	private Map<TwitterStream, TweetListener> listeners;
+	private TwitterStream stream;
+	private TweetListener listener;
 	
     /**
      * @see HttpServlet#HttpServlet()
      */
     public TwitterServlet() {
         super();
-        streams = new HashMap<>();
-        listeners = new HashMap<>();
     }
     
     private void RegisterTopic(String topic)
     {
-        TwitterStream stream = new TwitterStreamFactory().getInstance();
+    	if(stream == null)
+    	{
+            stream = new TwitterStreamFactory().getInstance();
+            listener = new TweetListener();
+            stream.onRateLimitReached(listener);
+            stream.addListener(listener);
+    	}
 
+    	listener.UpdateTopics("#"+ topic);
         FilterQuery fq = new FilterQuery();
-        String keywords[] = { topic };
+        String[] topics = new String[listener.GetTopics().size()];
+        String keywords[] = listener.GetTopics().toArray(topics);
         fq.track(keywords);
-        
-        TweetListener tweetListener = new TweetListener(topic);
-        stream.onRateLimitReached(tweetListener);
-        stream.addListener(tweetListener);
         stream.filter(fq);
-        
-        listeners.put(stream, tweetListener);
-        streams.put(topic, stream);
-    }
-    
-    private void UnregisterTopic(String topic)
-    {
-    	TwitterStream stream = streams.get(topic);
-    	
-    	try {
-			listeners.get(stream).close();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-    	
-    	streams.get(topic).cleanUp();
-    	listeners.remove(stream);
-    	streams.remove(topic);
-    }
-    
+    } 
     
 	/**
 	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
@@ -81,7 +64,7 @@ public class TwitterServlet extends HttpServlet {
 			return;
 		}
 		
-		if(streams.containsKey(topic))
+		if(listener != null && listener.GetTopics().contains(topic))
 		{
 			response.setStatus(403);
 			response.getWriter().append("Topic already tracked!");
@@ -102,14 +85,14 @@ public class TwitterServlet extends HttpServlet {
 			return;
 		}
 		
-		if(!streams.containsKey(topic))
+		if(!listener.GetTopics().contains(topic))
 		{
 			response.setStatus(403);
 			response.getWriter().append("Topic is not tracked!");
 			return;
 		}
 		
-		UnregisterTopic(topic);
-		response.getWriter().append("Topic untracked");
+    	listener.RemoveTopic(topic);
+		response.getWriter().append("Topic removed");
 	}
 }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="resources"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
+	<classpathentry kind="con" path="com.amazonaws.eclipse.lambda.AWS_LAMBDA_JAVA_CLASSPATH_CONTAINER"/>
+	<classpathentry kind="src" path="tst"/>
+	<classpathentry kind="lib" path="/home/flo/masterproject/Advanced_se_libraries/mongo-java-driver-3.0.4.jar"/>
+	<classpathentry kind="lib" path="/home/flo/masterproject/Advanced_se_libraries/stanford-corenlp-full-2015-12-09/stanford-corenlp-3.6.0-models.jar"/>
+	<classpathentry kind="lib" path="/home/flo/masterproject/Advanced_se_libraries/stanford-corenlp-full-2015-12-09/stanford-corenlp-3.6.0.jar"/>
+	<classpathentry kind="lib" path="/home/flo/masterproject/Advanced_se_libraries/stanford-corenlp-full-2015-12-09/ejml-0.23.jar"/>
+	<classpathentry kind="lib" path="/home/flo/masterproject/Advanced_se_libraries/stanford-corenlp-full-2015-12-09/slf4j-api.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
