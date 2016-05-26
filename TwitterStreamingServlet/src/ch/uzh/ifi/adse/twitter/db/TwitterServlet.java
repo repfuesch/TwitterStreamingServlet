@@ -17,82 +17,90 @@ import twitter4j.TwitterStream;
 import twitter4j.TwitterStreamFactory;
 
 /**
- * Servlet implementation class TwitterServlet
+ * Servlet implementation: Provides Methods to add or remove topics from the TwitterStream
+ * @author Florian Schüpfer
  */
-@WebServlet("/tweets")
-public class TwitterServlet extends HttpServlet {
+@WebServlet("/topics")
+public class TwitterServlet extends HttpServlet implements ITopicObserver{
 	private static final long serialVersionUID = 1L;
 	
 	private TwitterStream stream;
 	private TweetListener listener;
+	private TweetManager tweetManager;
 	
-    /**
-     * @see HttpServlet#HttpServlet()
-     */
     public TwitterServlet() {
         super();
+        
+        stream = new TwitterStreamFactory().getInstance();
+        tweetManager = new TweetManager();
+        tweetManager.AddObserver(this);
+        listener = new TweetListener(tweetManager);
+        stream.addListener(listener);
     }
     
-    private void RegisterTopic(String topic)
-    {
-    	if(stream == null)
-    	{
-            stream = new TwitterStreamFactory().getInstance();
-            listener = new TweetListener();
-            stream.onRateLimitReached(listener);
-            stream.addListener(listener);
-    	}
-
-    	listener.UpdateTopics("#"+ topic);
-        FilterQuery fq = new FilterQuery();
-        String[] topics = new String[listener.GetTopics().size()];
-        String keywords[] = listener.GetTopics().toArray(topics);
-        fq.track(keywords);
-        stream.filter(fq);
-    } 
-    
-	/**
-	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
-	 */
+    /**
+     * Adds a topic to the TweetManager
+     */
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		SetHeaders(response);
 		String topic = request.getParameter("topic");
 		
 		if(topic == null)
 		{
 			response.setStatus(403);
-			response.getWriter().append("Parameter 'topic' must be set!");
+			response.getWriter().append("\nParameter 'topic' must be set!\n");
 			return;
 		}
 		
-		if(listener != null && listener.GetTopics().contains(topic))
+		if(tweetManager.GetTopics().contains(topic))
 		{
 			response.setStatus(403);
-			response.getWriter().append("Topic already tracked!");
+			response.getWriter().append("\nTopic already tracked!\n");
 			return;
 		}
 		
-		RegisterTopic(topic);
-		response.getWriter().append("Topic tracked");
+    	tweetManager.InsertTopic("#"+ topic);
+		response.getWriter().append("\nTopic tracked\n");
 	}
 	
+	/**
+	 * Deletes a topic from the tweetManager or stops streaming entirely when no topic is provided
+	 */
 	protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		SetHeaders(response);
 		String topic = request.getParameter("topic");
 		
 		if(topic == null)
 		{
-			response.setStatus(403);
-			response.getWriter().append("Parameter 'topic' must be set!");
-			return;
+			tweetManager.DeleteTweets();
+			stream.cleanUp();
+			listener = null;
+			stream = null;
+			response.getWriter().append("\nStreaming stopped. All pending tweets deleted.\n");
+			
+		}else{
+			tweetManager.RemoveTopic(topic);
+			response.getWriter().append("\nTopic removed\n");
 		}
-		
-		if(!listener.GetTopics().contains(topic))
-		{
-			response.setStatus(403);
-			response.getWriter().append("Topic is not tracked!");
-			return;
-		}
-		
-    	listener.RemoveTopic(topic);
-		response.getWriter().append("Topic removed");
 	}
+	
+	private void SetHeaders(HttpServletResponse response)
+	{
+        response.setContentType("application/json");            
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Methods", "POST,DELETE");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        response.setHeader("Access-Control-Max-Age", "86400");
+	}
+
+	@Override
+	public void TopicsChanged(List<String> topics) {
+        FilterQuery fq = new FilterQuery();
+        String[] topicArray = new String[topics.size()];
+        String keywords[] = topics.toArray(topicArray);
+        fq.track(keywords);
+        stream.filter(fq);
+	}
+	
 }

@@ -13,7 +13,10 @@ import java.util.List;
 import java.util.Map;
 
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.dynamodbv2.document.DeleteItemOutcome;
@@ -29,36 +32,20 @@ import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.amazonaws.services.dynamodbv2.model.ScanResult;
+/**
+ * Listens to status updates from Twitter for the registered topics.
+ * Author: Florian Schüpfer
+ * Date: 26.05.2016
+ */
+public class TweetListener implements StatusListener {
+	
+	private TweetManager tweetManager;
+	
+	public TweetListener(TweetManager tweetManager){
+		
+		this.tweetManager = tweetManager;
+	}
 
-public class TweetListener implements StatusListener, twitter4j.util.function.Consumer<RateLimitStatusEvent> {
-	
-	private DynamoDB dynamoDB;
-	private List<String> topics;
-	
-	public TweetListener(){
-		AmazonDynamoDBClient client = new AmazonDynamoDBClient(new ProfileCredentialsProvider());
-		client.withEndpoint("http://localhost:8000");
-		dynamoDB = new DynamoDB(client);
-		this.topics = new ArrayList<>();
-	}
-	
-	public void UpdateTopics(String topic)
-	{
-		if(!topics.contains(topic))
-			topics.add(topic);
-	}
-	
-	public void RemoveTopic(String topic)
-	{
-		if(topics.contains(topic))
-			topics.remove(topic);
-	}
-	
-	public final List<String> GetTopics()
-	{
-		return topics;
-	}
-	
 	@Override
 	public void onException(Exception arg0) {
 	}
@@ -66,53 +53,26 @@ public class TweetListener implements StatusListener, twitter4j.util.function.Co
 	@Override
 	public void onStatus(Status tweet) {
 		
-		Table table = dynamoDB.getTable("Tweets");
+		tweetManager.UpdateTopics();
 		HashtagEntity[] hashtags = tweet.getHashtagEntities();
-		List<String> containedTopics = new ArrayList<>();
+		String referenced_topic = null;
 		for(HashtagEntity entity : hashtags)
 		{
-			for(String topic : topics)
+			for(String topic : tweetManager.GetTopics())
 			{
 				if(("#" + entity.getText()).equalsIgnoreCase(topic))
-					containedTopics.add(topic);
+				{
+					referenced_topic = topic;
+					break;
+				}
+				if(referenced_topic != null)
+					break;
 			}
 		}
 		
-		Item item = new Item()     
-			    .withPrimaryKey("Id", tweet.getId())
-			    .withString("text", tweet.getText())
-			    .withLong("createdAt", tweet.getCreatedAt().getTime())
-			    .withList("topics", topics);
-		
-		try{
-			PutItemOutcome outcome = table.putItem(item);
-		}catch(AmazonServiceException ex)
-		{
-			System.out.println("Exception: " + ex.getMessage());
-		}
-		
+		tweetManager.InsertTweet(tweet.getId(), tweet.getCreatedAt().getTime(), tweet.getLang(), tweet.getText(), referenced_topic);
 	}
 	
-	private void CleanTable()
-	{
-		/*
-		Map<String, AttributeValue> expressionAttributeValues = 
-			    new HashMap<String, AttributeValue>();
-		expressionAttributeValues.put(":topic", new AttributeValue().withS(topic));
-		ScanRequest scanRequest = new ScanRequest()
-			    .withTableName("Tweets")
-			    .withFilterExpression("topic = :topic")
-			    .withProjectionExpression("Id")
-			    .withExpressionAttributeValues(expressionAttributeValues);
-
-
-		ScanResult result = ((AmazonDynamoDB) dynamoDB).scan(scanRequest);
-		
-		Table table = dynamoDB.getTable("Tweets");
-		result.getItems().forEach(item -> table.deleteItem("Id", item.get("Id")));
-		*/
-	}
-
 	@Override
 	public void onTrackLimitationNotice(int arg0) {
 		// TODO Auto-generated method stub
@@ -133,13 +93,6 @@ public class TweetListener implements StatusListener, twitter4j.util.function.Co
 
 	@Override
 	public void onStallWarning(StallWarning arg0) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void accept(RateLimitStatusEvent t) 
-	{
 		// TODO Auto-generated method stub
 		
 	}
